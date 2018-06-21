@@ -1,5 +1,6 @@
 import pandas as pd
-
+import numpy as np
+import pickle
 
 class Clean_data():
 
@@ -26,6 +27,27 @@ class Clean_data():
                             'O':0
                            }
 
+    def read_pickle(self,fileName):
+        """ load in a pickle file
+
+                       :param file_name: txt file
+                       :return: a dataframe
+                       """
+        print('Reading pickle...')
+        data = pickle.load(open("%s" % (fileName), "rb"))
+        return data
+
+    def read_file(self,fileName):
+        """ read in a csv/txt file
+
+                :param file_name: txt file
+                :return: a dataframe
+                """
+        print('Reading data...')
+        data = pd.read_csv(fileName, sep="\t")
+        return data
+
+
     def pd_select_column(self, file_name, col_name_list, out_file=None):
         """ select column from a txt/csv file
 
@@ -46,6 +68,8 @@ class Clean_data():
             print('Dataframe\'s shape:{}\n' .format (df.shape))
 
         return df
+
+
 
     def delete_repetition(self, file_name, subset, out_file=None):
         """
@@ -136,4 +160,23 @@ class Clean_data():
 
         return data
 
+    def turn_cls_into_1hotvec(self,file_name, out_file = None):
+        """turn a dense vector(for ner tagging) into one hot vector"""
+        data = pd.read_csv(file_name, sep="\t")
 
+        # main code
+        for index, item in data.iterrows():
+            gold_std_cls = np.array(eval(item['mark']))
+            gold_std_cls_1hot = np.zeros((gold_std_cls.size, len(self.mark_class)))
+            gold_std_cls_1hot[np.arange(gold_std_cls.size), gold_std_cls] = 1
+            data.set_value(index, 'mark', gold_std_cls_1hot.tolist())
+
+        # for output
+        if out_file:
+            data.to_csv(out_file, sep='\t', header=True, index=False)
+            print('Dataframe\'s shape:{}'.format(data.shape))
+            print('Output file: %s\n' % (out_file))
+        else:
+            print('Dataframe\'s shape:{}\n'.format(data.shape))
+
+        return data
