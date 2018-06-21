@@ -13,7 +13,9 @@ def main(file_name):
     config = Config()
     model = Model(config)
 
-    final_data_all = model.contextualize(raw_data=df, vocab_str=vocab_str, vocab_vec=vocab_vec)
+    # final_data_all = model.contextualize(raw_data=df, vocab_str=vocab_str, vocab_vec=vocab_vec)
+    final_data_all = model.contextualize(raw_data=None, overide='train_data-0621.p')
+
     train_data, cv_data, test_data = model.split_final(final_data_all)
     model.train(train_data,'try')
 

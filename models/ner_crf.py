@@ -175,9 +175,9 @@ class Model():
 
             today = datetime.now().strftime("%m%d")
 
-            pickle.dump(train_data, open("DATA/train_data%s.p"%(today), "wb+"))
-            pickle.dump(cv_data, open("DATA/cv_data%s.p"%(today), "wb+"))
-            pickle.dump(test_data, open("DATA/test_data%s.p"%(today), "wb+"))
+            pickle.dump(train_data, open("datas/train_data%s.p"%(today), "wb+"))
+            pickle.dump(cv_data, open("datas/cv_data%s.p"%(today), "wb+"))
+            pickle.dump(test_data, open("datas/test_data%s.p"%(today), "wb+"))
 
             print('finish split data!')
             return train_data, cv_data, test_data
