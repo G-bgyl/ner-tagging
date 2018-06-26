@@ -1,35 +1,6 @@
 import pymysql
-
+import pandas as pd
 import re
-
-conn = pymysql.Connect(
-    user='root',
-    passwd='root',
-    db='vine',
-    charset='utf8'
-)
-
-
-def sqlDataFame(sql, columns=None):
-    cursor = conn.cursor()
-    cursor.execute(sql)
-    if columns is None:
-        result = pd.DataFrame(list(cursor.fetchall()))
-    else:
-        result = pd.DataFrame(list(cursor.fetchall()), columns=columns)
-    return result
-
-def cut_text(text, cuts):
-    left = 0
-    result = []
-    cuts += [len(text)]
-    cuts.sort()
-    for c in cuts:
-        tmp = text[left:c]
-        if tmp:
-            result += [tmp]
-            left = c
-    return result
 
 def is_Chinese_word(string):
     flag = False
@@ -59,18 +30,3 @@ def is_time(string):
     else:
         return False
 
-
-def msg_postag(msg_split):
-    postag_list = []
-    for i in msg_split:
-        if is_Chinese_word(i):
-            postag_list.append("c")
-        elif is_digit(i):
-            postag_list.append("d")
-        elif is_time(i):
-            postag_list.append("t")
-        elif is_string(i):
-            postag_list.append("s")
-        else:
-            postag_list.append("o")
-    return postag_list
