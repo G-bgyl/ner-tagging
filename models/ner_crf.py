@@ -6,8 +6,8 @@ from sklearn.model_selection import train_test_split
 import pickle
 import time
 from datetime import datetime
-
-
+from models.data_utils import Clean_data
+NUM = "$NUM$"
 class Model():
 
     def __init__(self,config):
@@ -17,6 +17,7 @@ class Model():
 
         """
         self.config = config
+        self.clean = Clean_data()
 
         '''
         # get from pretrained embeddings
@@ -30,60 +31,21 @@ class Model():
         L = tf.Variable(embeddings, dtype=tf.float32, trainable=False)
 
         '''
-    def generate_new(self,unk, vocab_str, vocab_vec):
+    def generate_new(self,unk,vocab_str, vocab_vec):
         """Dealing with Unknown words in zh_w2v, append new word string into vocab_str, new word vector into vocab_vec
           Input: unknown word,global vocab_str,vocab_vec
           Output: generate a random word embedding from multi-nomial distribution and add to glove_wordmap
         """
-        word = unk
-        # fake new vector
-        well = False
-        print(vocab_vec[-1],len(vocab_vec[-1]))
         s = np.vstack(vocab_vec)
-        Zvar = np.var(s, 0)  # distributional parameter for zh_w2v, for later generating random embedding for UNK
-        Zmean = np.mean(s, 0)
+        v = np.var(s, 0)  # distributional parameter for zh_w2v, for later generating random embedding for UNK
+        m = np.mean(s, 0)
         RS = np.random.RandomState()
 
+        unk_vec =RS.multivariate_normal(m, np.diag(v))
+        vocab_str.append(unk)
+        vocab_vec.append(unk_vec)
 
-        # Greedy search for word: if it did not find the whole word in zh_w2v, then truncate tail to find
-        i = len(unk)
-        tmp_vec_for_avg = []
-        while len(unk) > 0:
-
-            wd = unk[:i]  # shallow copy
-            if wd in vocab_str:
-                tmp_vec_for_avg.append(vocab_vec[vocab_str.index(wd)])
-                unk = unk[i:]  # set to whatever the rest of words is, eg. hallway --> hall, way, split to 2 words
-                i = len(unk)
-            else:
-                i = i - 1
-
-            # finish greedy search. code below only run once for each time this function called, and
-            # tmp_vec_for_avg should contain at least two vectors in order to sum without broken.
-
-            if i == 0:
-                # alternative: new_word_vec = np.average(tmp_vec_for_avg, axis=0)
-                # maybe not rubust because of there are less than 2 list in tmp_vec_for_avg, means the greedy search
-                # didn't used
-                # new_word_vec = [sum(l) for l in zip(*tmp_vec_for_avg)]
-                if tmp_vec_for_avg:
-                    new_word_vec = np.average(tmp_vec_for_avg, axis=0)
-                    vocab_str.append(word)
-                    vocab_vec.append(new_word_vec)
-                    well = True
-                    break
-                else:
-                    new_word_vec = RS.multivariate_normal(Zmean, np.diag(Zvar))
-                    vocab_str.append(word)
-                    vocab_vec.append(new_word_vec)
-                    break
-        if not well:
-            print('numbers')
-        # maybe not rubust because the definition of new_word_vec is hidden in a if condition clause
-        return vocab_str, vocab_vec, new_word_vec
-
-
-
+        return [unk_vec], vocab_str, vocab_vec
 
     def sentence2sequence(self,sentence, vocab_str, vocab_vec):
         """
@@ -101,21 +63,23 @@ class Model():
             if len(sent_idx_list) < self.config.maxSeqLength:
                 word = sent_raw_list[j]
                 try:
-                    sent_idx_list.append(vocab_vec[vocab_str.index(word)])
+                    id = vocab_str.index(word)
+                    sent_idx_list.append(vocab_vec[id])
                     sent_str_list.append(word)
                 except ValueError:
-                    vocab_str, vocab_vec, new_word_vec = self.generate_new(word, vocab_str, vocab_vec)
-                    sent_str_list.append(word)
-                    sent_idx_list.append(new_word_vec)
-
+                    print('generate new')
+                    unk_vec, vocab_str, vocab_vec = self.generate_new(word, vocab_str, vocab_vec)
+                    sent_str_list.extend(word)
+                    sent_idx_list.extend(unk_vec)
             else:
                 break
         # make sure the length of two return params are fixed.
         # Padding
         left_len = self.config.maxSeqLength - len(sent_idx_list)
         if left_len > 0:
-            sent_idx_list.extend(np.zeros((300,)) for i in range(left_len))
+            sent_idx_list.extend(np.zeros((self.config.numDimensions,)) for i in range(left_len))
             sent_str_list.extend([''] * left_len)
+        print('finish one sent')
         return sent_str_list, sent_idx_list
 
 
@@ -127,21 +91,22 @@ class Model():
         '''
         contextualize_start_time = time.time()
         if overide:
-            data = pickle.load(open(".datas/%s"%(overide), "rb"))
+            data = pickle.load(open("datas/%s"%(overide), "rb"))
             print('finish load final_data from pickle!')
             return data
         else:
+            print('Begin prepare for final data...')
             final_data = []
             i = 0
             for index, each in raw_data.iterrows():
-
-                id, list_content, labels = each
-                list_content = eval(list_content)
-                labels = eval(labels)
+                print('iter throw raw data')
+                id, list_content, labels, one_hot = each
+                list_content = self.clean.sent_num_mask(one_sent=list_content)
+                one_hot = eval(one_hot)
 
                 sent_str_list, sent_idx_list = self.sentence2sequence(list_content, vocab_str, vocab_vec)
-                final_data.append((labels, sent_str_list, sent_idx_list))
-                if i % 500 == 0:
+                final_data.append((one_hot, sent_str_list, sent_idx_list))
+                if i % 50 == 0:
                     print(i, len(sent_str_list), len(sent_idx_list[0]), 'process sms message in sentence2sequence!')
                 i += 1
             pickle.dump(final_data, open("datas/%s-%s.p"%(save, datetime.now().strftime("%m%d")), "wb+"))
@@ -162,9 +127,9 @@ class Model():
         '''
 
         if overide:
-            train_data = pickle.load(open("DATA/train_data.p"%(overide), "rb"))
-            cv_data = pickle.load(open("DATA/cv_data%s.p"%(overide), "rb"))
-            test_data = pickle.load(open("DATA/test_data%s.p"%(overide), "rb"))
+            train_data = pickle.load(open("datas/train_data%s.p"%(overide), "rb"))
+            cv_data = pickle.load(open("datas/cv_data%s.p"%(overide), "rb"))
+            test_data = pickle.load(open("datas/test_data%s.p"%(overide), "rb"))
 
             print('finish load split data from pickle!')
             return train_data, cv_data, test_data
@@ -182,35 +147,121 @@ class Model():
             print('finish split data!')
             return train_data, cv_data, test_data
 
+    def turn_list_into_nparray(self,list):
+        """return an array instead of a list"""
+        np_list = np.asarray(list)
 
-    def train(self,train_data,save = None):
+        return np_list
 
+    def convert_batch_into_array(self,batch):
+        """convert list of batch into array"""
+        new_batch = []
+        for each in batch:
+            new_batch.append(self.turn_list_into_nparray(each))
+        return np.asarray(new_batch)
+
+    def add_padding(self, batch, shape):
+        """ padding batch to shape
+
+        :param batch: with shape of batchsize, shape[0], shape[1]
+        :param shape: maxSeqLength, numClasses
+        :return:
+        """
+        new_batch = []
+        for each in batch:
+            pad = shape[0]-len(each)
+            # for i in range(shape[0]-len(each)):
+            each = np.vstack((each, np.zeros((pad, shape[1]))))
+            new_batch.append(each)
+            if len(each) > shape[0]:
+                raise KeyError('sms longer than %s'%(shape[0]))
+        # print([(i,x) for i,x in enumerate(new_batch) if x.shape !=tuple(shape)])
+
+        return np.asarray(new_batch)
+    def sum_label(self):
+        '''
+        # calculate f1 score
+        tp, fp, fn, tn = 0, 0, 0, 0
+
+        # for scene_code in target_scene:
+        # type_to_eval=1 when test S0002
+        type_to_eval = target_scene[scene_code]
+        for i in range(len(correctPred_list)):
+            pred = list(prediction_list[i])
+            accu = list(nextBatchLabels[i])
+            if pred.index(max(pred)) == type_to_eval:
+
+                if accu.index(1) == type_to_eval:
+                    tp += 1
+                else:
+                    fn += 1
+            else:
+                if accu.index(1) == type_to_eval:
+                    fp += 1
+                else:
+                    tn += 1
+        precision = tp / (tp + fp)
+        recall = tp / (tp + fn)
+        accuracy_ = (tp + tn) / (tp + fp + tn + fn)
+        f1_score = 2 / (1 / precision + 1 / recall)
+        print('............ stats for %s ............' % (scene_code))
+        print('tp', tp)
+        print('fp', fp)
+        print('fn', fn)
+        print('tn', tn)
+        print('Precision for %s:' % (scene_code), precision)
+        print('Recall for %s:' % (scene_code), recall)
+        print('Accuracy for %s:' % (scene_code), accuracy_)
+        print('F1 for %s:' % (scene_code), f1_score)
+        return precision, recall, accuracy_, f1_score
+        '''
+        pass
+    def summary(self):
+        pass
+
+    def train(self, train_data, save = None):
         tf.reset_default_graph()
-        labels = tf.placeholder(tf.float32, [None, self.config.numClasses])  # batchSize
-        # maybe is a batch size data
-        batch_vec_data = tf.placeholder(
-            tf.float32, [None, self.config.maxSeqLength, self.config.numDimensions], "context")  # batchSize
+        with tf.variable_scope("lstm"):
+            # None, self.config.maxSeqLength, self.config.numClasses
+            labels = tf.placeholder(tf.int32, [self.config.batchSize, self.config.maxSeqLength, self.config.numClasses],name='labels')
 
-        lstmCell = tf.contrib.rnn.BasicLSTMCell(self.config.lstmUnits)
-        lstmCell = tf.contrib.rnn.DropoutWrapper(cell=lstmCell, output_keep_prob=self.config.drop_out)
+            batch_vec_data = tf.placeholder(
+                tf.float32, [self.config.batchSize, self.config.maxSeqLength, self.config.numDimensions], "batch_vec_data")  # batchSize
 
-        value, _ = tf.nn.dynamic_rnn(lstmCell, batch_vec_data, dtype=tf.float32)
-        weight = tf.Variable(tf.truncated_normal([self.config.lstmUnits, self.config.numClasses]))
-        bias = tf.Variable(tf.constant(0.1, shape=[self.config.numClasses]))
-        value = tf.transpose(value, [1, 0, 2])
-        last = tf.gather(value, int(value.get_shape()[0]) - 1)
-        prediction = tf.matmul(last, weight) + bias
+            lstmCell = tf.contrib.rnn.BasicLSTMCell(self.config.lstmUnits)
+            lstmCell = tf.contrib.rnn.DropoutWrapper(cell=lstmCell, output_keep_prob=self.config.drop_out)
 
-        correctPred = tf.equal(tf.argmax(prediction, 1), tf.argmax(labels, 1))
-        accuracy = tf.reduce_mean(tf.cast(correctPred, tf.float32))
-        loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=labels) + self.config.beta * tf.nn.l2_loss(
-                weight) + self.config.beta * tf.nn.l2_loss(bias))
-        optimizer = tf.train.AdamOptimizer(beta1=0.9, beta2=0.999).minimize(loss)
+
+            value, _ = tf.nn.dynamic_rnn(lstmCell, batch_vec_data, dtype=tf.float32)
+
+        with tf.variable_scope("proj"):
+            weight = tf.Variable(tf.truncated_normal([self.config.lstmUnits, self.config.numClasses]),name='weight')
+            bias = tf.Variable(tf.constant(0.1, shape=[self.config.numClasses]),name = 'bias')
+
+            value = tf.reshape(value, [-1, self.config.lstmUnits])
+            predict = tf.matmul(value, weight) + bias
+            prediction = tf.reshape(predict,[self.config.batchSize, self.config.maxSeqLength, self.config.numClasses])
+
+        with tf.variable_scope("pred"):
+            if self.config.use_crf:
+                print(prediction.shape)
+                print(labels.shape)
+                log_likelihood, trans_params = tf.contrib.crf.crf_log_likelihood(
+                    prediction, labels, self.config.batchSize)
+                # self.trans_params = trans_params  # need to evaluate it for decoding
+                loss = tf.reduce_mean(-log_likelihood)
+            else:
+                correctPred = tf.equal(tf.argmax(prediction, 1), tf.argmax(labels, 1))
+                accuracy = tf.reduce_mean(tf.cast(correctPred, tf.float32))
+                loss = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=labels))
+                    # + self.config.beta * tf.nn.l2_loss(weight) + self.config.beta * tf.nn.l2_loss(bias)
+            optimizer = tf.train.AdamOptimizer(learning_rate=self.config.learning_rate, beta1=0.9, beta2=0.999).minimize(loss)
 
         sess = tf.InteractiveSession()
+        saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
-
+        # s_w = tf.summary.FileWriter('tensorboard',sess.graph)
         convertion = 0
 
 
@@ -221,18 +272,23 @@ class Model():
                 print('\nIteration %s Successfully converge!' % (i))
                 break
 
-            batch = np.random.randint(len(train_data), size=self.config.ibatchSize)
+            batch = np.random.randint(len(train_data), size=self.config.batchSize)
             batch_data = [train_data[k] for k in batch]
 
             # zip(*batch_data) returns labels, sent_str_list, sent_idx_list
             nextBatchLabels, _, nextBatchVec = zip(*batch_data)
+            nextBatchLabels = self.convert_batch_into_array(nextBatchLabels)
+            nextBatchLabels = self.add_padding(nextBatchLabels, [self.config.maxSeqLength, self.config.numClasses])
             feed_dict = {batch_vec_data: nextBatchVec, labels: nextBatchLabels}
-            _, accuracy_num, correctPred_list = sess.run([optimizer,accuracy, correctPred],
-                                                      feed_dict=feed_dict)
-            #calculate accuracy
+            # print([(i,x.shape)  for i, x in enumerate(nextBatchLabels) if x.shape !=(150,10)])
+            # print([(i,len(x))  for i, x in enumerate(nextBatchVec) if len(x) != 150])
+
+            _, accuracy_num, correctPred_list,loss_ = sess.run([optimizer,accuracy, correctPred,loss], feed_dict=feed_dict)
+            # calculate accuracy
             train_accu = (accuracy_num * 100)
             if (i + 1) % 50 == 0:
-                print("Accuracy for batch %s : %s %% " % ((i + 1), train_accu))
+                self.summary()
+                print("Batch %s\t: acc \t %s %% ,loss\t %s " % ((i + 1, train_accu, loss_)))
 
             # help made judgment of converging.
             if 100 - train_accu < 0.25:
@@ -240,11 +296,11 @@ class Model():
 
         if save:
             today = datetime.now().strftime("%m%d")
-            pickle.dump(sess, open("models/model-%s%s.p" % (save,today), "wb+"))
-            print("saved to models/model-%s%s.p" % (save,today))
-
-
-
+            # Save the variables to disk.
+            save_path = saver.save(sess, "tf_model/model-%s%s.ckpt" % (save,today))
+            print("Model saved in path: %s" % save_path)
+            #
+            # print("saved to models/model-%s%s.p" % (save,today))
 
     '''
 
