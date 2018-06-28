@@ -5,20 +5,22 @@ import re
 
 from models.general_utils import is_digit, is_time, is_string
 
+NONE = "O-S"
+
 class Clean_data():
 
     def __init__(self):
         pass
-        # self.mark_type = {  'E0001':'短信发送机构',
-        #                     'E0002':'用户账户号',
-        #                     'E0003':'交易时间',
-        #                     'E0004':'交易对象',
-        #                     'E0005':'交易类型',
-        #                     'E0006':'交易金额',
-        #                     'E0007':'账户余额',
-        #                     'E0008':'余额类型',
-        #                     'E0012':'账户类型'
-        #                     }
+        self.ner_type = {  'E0001':'短信发送机构',
+                            'E0002':'用户账户号',
+                            'E0003':'交易时间',
+                            'E0004':'交易对象',
+                            'E0005':'交易类型',
+                            'E0006':'交易金额',
+                            'E0007':'账户余额',
+                            'E0008':'余额类型',
+                            'E0012':'账户类型'
+                            }
         # self.mark_class = { 'E0001': 1,
         #                     'E0002': 2,
         #                     'E0003': 3,
@@ -258,3 +260,75 @@ class Clean_data():
                 seg = re.sub('[a-zA-Z]','x',seg)
             sentence.append(seg)
         return sentence
+
+    def get_chunk_type(self, tok, idx_to_tag):
+        """
+        Args:
+            tok: id of token, ex 4
+            idx_to_tag: dictionary {4: "B-PER", ...}
+
+        Returns:
+            tuple: "B", "PER"
+
+        """
+        tag_name = idx_to_tag[tok]
+        tag_type = tag_name.split('-')[0]
+        tag_class = tag_name.split('-')[-1]
+        return tag_class, tag_type
+
+    def get_chunks(self, seq, tags):
+        """Given a sequence of tags, group entities and their position
+
+            Args:
+                seq: [4, 4, 0, 0, ...] sequence of labels
+                tags: dict["O"] = 4
+
+            Returns:
+                list of (chunk_type, chunk_start, chunk_end)
+
+            Example:
+                seq = [4, 5, 0, 3]
+                tags = {"B-PER": 4, "I-PER": 5, "B-LOC": 3}
+                result = [("PER", 0, 2), ("LOC", 3, 4)]
+
+            """
+        default = tags[NONE]
+        idx_to_tag = {idx: tag for tag, idx in tags.items()}
+        chunks = []
+        chunk_type, chunk_start = None, None
+        for i, tok in enumerate(seq):
+            # End of a chunk 1
+            if tok == default and chunk_type is not None:
+                # Add a chunk.
+                chunk = (chunk_type, chunk_start, i)
+                chunks.append(chunk)
+                chunk_type, chunk_start = None, None
+
+            # End of a chunk + start of a chunk!
+            elif tok != default:
+                tok_chunk_class, tok_chunk_type = self.get_chunk_type(tok, idx_to_tag)
+                if chunk_type is None:
+                    chunk_type, chunk_start = tok_chunk_type, i
+                elif tok_chunk_type != chunk_type or tok_chunk_class == "B":
+                    chunk = (chunk_type, chunk_start, i)
+                    chunks.append(chunk)
+                    chunk_type, chunk_start = tok_chunk_type, i
+            else:
+                pass
+
+        # end condition
+        if chunk_type is not None:
+            chunk = (chunk_type, chunk_start, len(seq))
+            chunks.append(chunk)
+
+        return chunks
+
+    def output_predict_result(self, sequence, lab_pred_chunks):
+        predict_result = ['00'+''.join(sequence)]
+
+        for (n_type,begin,end) in lab_pred_chunks:
+            predict_result.append('%s%s: %s' % (n_type[-2:], self.ner_type[n_type], ''.join(sequence[begin:end])))
+
+        predict_result = sorted(predict_result)
+
+        return predict_result
