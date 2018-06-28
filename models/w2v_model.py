@@ -13,15 +13,15 @@ class Word2Vec():
     def __init__(self):
         self.clean = Clean_data()
 
-    def clean_w2v_data(self,file_word_seg):
+    def clean_w2v_data(self,file_word_seg,col_name_list,out_file):
 
 
         # clean.pd_select_column returns a dataframe, change it to list
 
 
-        col_name_list = ['raw_split']
+
         word_seg_list = self.clean.pd_select_column(file_name=file_word_seg, col_name_list=col_name_list,
-                                               out_file='datas/word2vec.csv').values.tolist()
+                                               out_file=out_file).values.tolist()
 
 
         documents = self.clean.dataset_num_mask(word_seg_list)
