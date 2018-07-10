@@ -1,5 +1,6 @@
-import pymysql
-import pandas as pd
+'''
+    former code to create sms messgae mask
+'''
 import re
 
 def is_Chinese_word(string):

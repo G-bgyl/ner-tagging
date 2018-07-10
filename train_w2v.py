@@ -1,3 +1,6 @@
+'''
+    Entrance for train a word2vec or char2vec vocab.
+'''
 from models.w2v_model import Word2Vec
 
 def main(col_namList, char_embedding,dimension,resource_file,out_file):

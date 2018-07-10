@@ -1,3 +1,6 @@
+'''
+configurations for ner_crf model
+'''
 import pandas as pd
 import os
 

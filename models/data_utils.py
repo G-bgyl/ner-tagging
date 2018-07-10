@@ -1,3 +1,6 @@
+'''
+Data utilities for models, mainly aims to clean data.
+'''
 import pandas as pd
 import numpy as np
 import pickle
@@ -199,11 +202,6 @@ class Clean_data():
 
     def turn_cls_into_1hotvec(self, file_name, col_list, out_file = None):
         """turn a dense vector(for ner tagging) into one hot vector
-
-        :param file_name:
-        :param col_list:
-        :param out_file:
-        :return:
         """
         data = pd.read_csv(file_name, sep="\t")
 
@@ -233,8 +231,6 @@ class Clean_data():
         """create a mask for numbers, turn time to 8, turn money and others to 1
 
         :param word_seg_list: a list of list, each sublist contains word segments of a sentece.
-        :param mask:
-        :return:
         """
         mask_seg_list = []
         for list_ in word_seg_list:
@@ -252,7 +248,6 @@ class Clean_data():
         """create a mask for numbers, turn time to 8, turn money and others to 1
 
         :param sentence: a list of word segments in one sentence
-        :return:
         """
         if type(one_sent)== str:  # when the input is a string, like: '['w1','w2','w3'...]'
             one_sent=eval(one_sent)

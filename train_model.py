@@ -1,3 +1,6 @@
+'''
+    Entrance of training a NER model
+'''
 from models.data_utils import Clean_data
 from models.config import Config
 from models.ner_crf import Model

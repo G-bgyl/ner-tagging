@@ -1,3 +1,6 @@
+'''
+    Entrance for preparing data for ner model.
+'''
 from models.data_utils import Clean_data
 
 clean = Clean_data()
