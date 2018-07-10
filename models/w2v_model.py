@@ -13,19 +13,15 @@ class Word2Vec():
     def __init__(self):
         self.clean = Clean_data()
 
-    def clean_w2v_data(self,file_word_seg,col_name_list,out_file):
-
-
-        # clean.pd_select_column returns a dataframe, change it to list
-
-
+    def clean_w2v_data(self,file_word_seg,col_name_list,out_file, char=False):
+        """clean.pd_select_column returns a dataframe, change it to list"""
 
         word_seg_list = self.clean.pd_select_column(file_name=file_word_seg, col_name_list=col_name_list,
                                                out_file=out_file).values.tolist()
-
-
-        documents = self.clean.dataset_num_mask(word_seg_list)
-        # sentences = self.clean.turn_list_into_str(documents)
+        # TODO: unmask the content
+        documents = self.clean.dataset_num_mask(word_seg_list, mask=False)
+        if char:
+            documents = self.clean.turn_list_into_str(documents,sep='')
         # sentences = gensim.models.word2vec.LineSentence(sentences)
         return documents
 
@@ -45,7 +41,8 @@ class Word2Vec():
 
     def train_w2v(self,sentences):
         """train gensim model for word2vec"""
-        self.model.train(sentences, total_examples=len(sentences), epochs=10)
+        train = self.model.train(sentences, total_examples=len(sentences), epochs=20)
+
         return self.model
 
     def output_w2v(self,path=None, file = None):
@@ -62,18 +59,18 @@ class Word2Vec():
         for word in vocab:
             vocab_str.append(word)
             vocab_vec.append(self.model.wv[word])
-            # print(word, self.model.wv[word],self.model.wv.vocab[word])
+            print(word)  # , self.model.wv[word],self.model.wv.vocab[word]
         if file:
             pickle.dump(vocab_str, open("%s%s"%(path,file[0]), "wb+"))
             pickle.dump(vocab_vec, open("%s%s"%(path,file[1]), "wb+"))
             print('sample of vocab_vec:{}'.format(vocab_vec[0]))
 
             print('Successfully output vocab_str & vocab_vec to pickle!')
-
+        print('len of vocab:',len(vocab_str))
         return vocab_str, vocab_vec
 
     def evaluate_w2v(self):
-        # evaluate
+        # evaluate for word embedding
         print()
         print()
         w1 = '滴滴出行'

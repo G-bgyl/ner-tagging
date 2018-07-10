@@ -1,4 +1,11 @@
 datas/*
 models/__pycache__
 shared/
+.idea/
+models/plot_utils.py
+outputs/
+plot_ner.py
+script/
+tensorboard/
+tf_model/
 

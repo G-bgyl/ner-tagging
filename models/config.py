@@ -8,16 +8,23 @@ class Config():
 
         #params for build data
         self.maxSeqLength = 95
+        self.maxWordLength = 50
 
         # params for tensorflow training
-        self.batchSize = 200
-        self.lstmUnits = 256
+        self.batchSize = 28
+        self.lstmUnits = 128
         self.numClasses = self.cal_numClasses()
-        self.iterations = 600
-        self.numDimensions = 1024
-        self.drop_out = 0.75
+        self.iterations = 5000
+
+        self.drop_out = 1
+
         self.use_crf = True
+        self.use_chars = True
+
         self.learning_rate = 0.0025
+
+        self.numDimensions = 200
+        self.charDimensions = 50
 
 
 
@@ -34,7 +41,7 @@ class Config():
 
     def get_class_dict(self):
         tag_dict={}
-        data = pd.read_csv(self.tagFile, sep="\t")
+        data = pd.read_csv(self.tagFile, sep="\t")  # header=None,
 
         for _,(tag,id) in data.iterrows():
             tag_dict[tag] = id

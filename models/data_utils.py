@@ -155,7 +155,7 @@ class Clean_data():
             dfClass=pd.DataFrame.from_dict(self.mark_class, orient='index')
             dfClass.to_csv(saveConfig, sep='\t', header=False)
         return data
-
+    '''
     def turn_type_into_class_by_df(self, data, input_col, out_col, out_file=None, saveConfig='datas/ner_type.txt'):
         """turn type(string) into class(number)
 
@@ -188,19 +188,30 @@ class Clean_data():
             dfClass=pd.DataFrame.from_dict(self.mark_class, orient='index')
             dfClass.to_csv(saveConfig, sep='\t', header=True)
 
-        return data
+        return data'''
 
-    def turn_cls_into_1hotvec(self,file_name, out_file = None):
-        """turn a dense vector(for ner tagging) into one hot vector"""
+    def _turn_cls_into_1hotvc(self,class_,item):
+        """turn one number into a vector, length equals to number of types"""
+        gold_std_cls = np.array(eval(item[class_]))
+        gold_std_cls_1hot = np.zeros((gold_std_cls.size, len(self.mark_class)))
+        gold_std_cls_1hot[np.arange(gold_std_cls.size), gold_std_cls] = 1
+        return  gold_std_cls_1hot.tolist()
+
+    def turn_cls_into_1hotvec(self, file_name, col_list, out_file = None):
+        """turn a dense vector(for ner tagging) into one hot vector
+
+        :param file_name:
+        :param col_list:
+        :param out_file:
+        :return:
+        """
         data = pd.read_csv(file_name, sep="\t")
 
         # main code
-        for index, item in data.iterrows():
-            gold_std_cls = np.array(eval(item['mark']))
-            gold_std_cls_1hot = np.zeros((gold_std_cls.size, len(self.mark_class)))
-            gold_std_cls_1hot[np.arange(gold_std_cls.size), gold_std_cls] = 1
-            gold_std_cls_1hot[np.arange(gold_std_cls.size), gold_std_cls] = 1
-            data.set_value(index, 'mark', gold_std_cls_1hot.tolist())
+        for row in data.iterrows():
+            index, item = row
+            for class_ in col_list:
+                data.set_value(index, class_, self._turn_cls_into_1hotvc(class_,item))
 
         # for output
         if out_file:
@@ -209,15 +220,13 @@ class Clean_data():
             print('Output file: %s\n' % (out_file))
         else:
             print('Dataframe\'s shape:{}\n'.format(data.shape))
-
-
         return data
 
-    def turn_list_into_str(self, list_of_list):
+    def turn_list_into_str(self, list_of_list, sep=''):
         """turn list of list(WORD SEGMENTS) into list of string"""
         list_sentences=[]
         for list_of_seg in list_of_list:
-            list_sentences.append(' '.join(list_of_seg))
+            list_sentences.append(sep.join(list_of_seg))
         return list_sentences
 
     def dataset_num_mask(self, word_seg_list, mask = True):
@@ -239,7 +248,7 @@ class Clean_data():
         print('successfully add mask of num!')
         return mask_seg_list
 
-    def sent_num_mask(self, one_sent):
+    def sent_num_mask(self, one_sent, mask = True):
         """create a mask for numbers, turn time to 8, turn money and others to 1
 
         :param sentence: a list of word segments in one sentence
@@ -250,15 +259,20 @@ class Clean_data():
         elif type(one_sent) == list and len(one_sent)==1:
             # when the input is a list of only one long string(of a list), like:["['w1','w2','w3'...]"]
             one_sent = eval(one_sent[0])
-        sentence = []
-        for seg in one_sent:
-            if is_time(seg):
-                seg = re.sub('\d', '1', seg)
-            elif is_digit(seg):
-                seg = re.sub('\d', '8', seg)
-            elif is_string(seg):
-                seg = re.sub('[a-zA-Z]','x',seg)
-            sentence.append(seg)
+
+        if mask:
+            sentence = []
+            for seg in one_sent:
+                if is_time(seg):
+                    seg = re.sub('\d', '1', seg)
+                elif is_digit(seg):
+                    seg = re.sub('\d', '8', seg)
+                elif is_string(seg):
+                    seg = re.sub('[a-zA-Z]','x',seg)
+                sentence.append(seg)
+        else:
+            sentence = one_sent
+
         return sentence
 
     def get_chunk_type(self, tok, idx_to_tag):
